@@ -5,11 +5,14 @@ Statistics include accuracy, total words, correct words, and errors.
 
 import difflib
 import enum
-from typing import Dict, List, TypedDict, Union
+from typing import List, Optional, TypedDict
 
 from rapidfuzz import fuzz
 
+from app.services.loaders import YouTubeTranscriptionLoader
 from app.services.preprocessing import normalize_text
+
+loader = YouTubeTranscriptionLoader()
 
 
 class Tag(str, enum.Enum):
@@ -40,21 +43,37 @@ class TranscriptDiffDict(TypedDict):
     stats: StatsDict
 
 
-def process_transcript_diff(original: str, created: str) -> TranscriptDiffDict:
+def process_transcript_diff(
+    created: str,
+    original: Optional[str] = None,
+    original_transcript_url: Optional[str] = None,
+) -> Optional[TranscriptDiffDict]:
     """
     Compare transcripts using normalized text for accuracy,
     but return diffs based on original text for highlighting.
     """
 
+    # Get original transcript
+    content = original
+    if not content and original_transcript_url:
+        content = loader.fetch(original_transcript_url)
+
+    if not content:
+        return None
+
+    # Normalize for diff
+    diff_content = content.replace("\n", " ").replace("\t", " ")
+    diff_created = created.replace("\n", " ").replace("\t", " ")
+
     # Normalize for scoring
-    norm_original = normalize_text(original)
-    norm_created = normalize_text(created)
+    norm_original = normalize_text(diff_content)
+    norm_created = normalize_text(diff_created)
 
     # Get similarity score (normalized)
     similarity = fuzz.ratio(norm_original, norm_created)
 
     # Diff on *original* text for highlighting
-    differ = difflib.SequenceMatcher(None, original, created)
+    differ = difflib.SequenceMatcher(None, diff_content, diff_created)
     diff_data: List[DiffDataDict] = []
 
     for tag, i1, i2, j1, j2 in differ.get_opcodes():
@@ -62,7 +81,7 @@ def process_transcript_diff(original: str, created: str) -> TranscriptDiffDict:
             diff_data.append(
                 {
                     "category": Tag.EQUAL,
-                    "text": original[i1:i2],
+                    "text": content[i1:i2],
                     "position": i1,
                 }
             )
@@ -70,7 +89,7 @@ def process_transcript_diff(original: str, created: str) -> TranscriptDiffDict:
             diff_data.append(
                 {
                     "category": Tag.DELETE,
-                    "text": original[i1:i2],
+                    "text": content[i1:i2],
                     "position": i1,
                 }
             )
@@ -86,7 +105,7 @@ def process_transcript_diff(original: str, created: str) -> TranscriptDiffDict:
             diff_data.append(
                 {
                     "category": Tag.REPLACE,
-                    "original": original[i1:i2],
+                    "original": content[i1:i2],
                     "created": created[j1:j2],
                     "position": i1,
                 }

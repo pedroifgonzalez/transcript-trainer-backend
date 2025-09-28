@@ -1,13 +1,27 @@
 from typing import List, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 from app.services.comparison import Tag
 
 
 class CompareTranscripts(BaseModel):
-    original_transcript: str = Field(description="Original transcript")
+    original_transcript: Optional[str] = Field(None, description="Original transcript")
+    original_transcript_url: Optional[str] = Field(
+        None, description="Original transcript URL"
+    )
     modified_transcript: str = Field(description="Modified transcript")
+
+    @model_validator(mode="before")
+    def validate_transcripts(cls, values):
+        if (
+            values.get("original_transcript") is None
+            and values.get("original_transcript_url") is None
+        ):
+            raise ValueError(
+                "At least one of original_transcript or original_transcript_url must be provided"
+            )
+        return values
 
 
 class Stats(BaseModel):
@@ -39,4 +53,6 @@ class CompareTranscriptsDiff(BaseModel):
 
 class CompareTranscriptsResponse(BaseModel):
     message: str = Field(description="Message indicating the result of the comparison")
-    data: CompareTranscriptsDiff = Field(description="Comparison results")
+    data: Optional[CompareTranscriptsDiff] = Field(
+        None, description="Comparison results"
+    )

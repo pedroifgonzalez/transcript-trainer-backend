@@ -19,9 +19,15 @@ router = APIRouter()
 )
 async def compare_transcripts(compare_transcripts: CompareTranscripts):
     diff_result = process_transcript_diff(
-        compare_transcripts.original_transcript,
-        compare_transcripts.modified_transcript,
+        created=compare_transcripts.modified_transcript,
+        original=compare_transcripts.original_transcript,
+        original_transcript_url=compare_transcripts.original_transcript_url,
     )
+    if not diff_result:
+        return CompareTranscriptsResponse(
+            message="Transcripts comparison failed",
+            data=None,
+        )
     diff_data_models = [DiffData(**item) for item in diff_result["diff_data"]]
     stats_model = Stats(**diff_result["stats"])
     diff_model = CompareTranscriptsDiff(
